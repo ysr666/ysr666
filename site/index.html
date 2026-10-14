@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f3eb" />
+  <meta name="description" content="错了就错了，先放在这里吧。一个安静记录、重新理解过去的私人空间。" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="错事" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+  
+  <title>错事</title>
+  <style>
+    :root { font-synthesis: none; -webkit-tap-highlight-color: transparent; }
+    * { box-sizing: border-box; }
+    html { height: 100%; }
+    body { margin: 0; min-height: 100%; -webkit-font-smoothing: antialiased; }
+    body, button, input, textarea { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif; }
+    button, input, textarea { color: inherit; }
+    button { cursor: pointer; }
+    button:disabled { opacity: .32; cursor: not-allowed; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    #app { min-height: 100dvh; background: var(--bg); color: var(--ink); transition: background .24s, color .24s; }
+    #app[data-theme="paper"] {
+      --bg: #f7f3eb; --paper: #f7f3eb; --ink: #292723; --muted: #847f75; --low: #aba497;
+      --line: #ded8ce; --raised: #f0ebe1; --soft: #f4eee4; --accent: #675b4a;
+      --type-numeric: "Iowan Old Style", "Baskerville", "Times New Roman", Georgia, "Songti SC", serif;
+      --type-title: "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", Georgia, serif;
+      --shadow: 0 10px 24px rgba(64,55,43,.04);
+    }
+    #app[data-theme="modern"] {
+      --bg: #fcfcfc; --paper: #fff; --ink: #19202a; --muted: #707783; --low: #a1a7ae;
+      --line: #e8ebee; --raised: #f1f3f5; --soft: #f6f7f8; --accent: #263c50;
+      --type-numeric: "Inter", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+      --type-title: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+      --shadow: none;
+    }
+    @media (min-width: 700px) {
+      body { background: #e9e9e8; }
+      #app { width: min(100%, 430px); margin: auto; min-height: 100dvh; box-shadow: 0 10px 70px rgba(0,0,0,.1); }
+    }
+    #viewport { min-height: 100dvh; max-width: 430px; margin: auto; position: relative; padding: 0 25px calc(116px + env(safe-area-inset-bottom,0px)); }
+    .app-header { min-height: 92px; display: flex; align-items: flex-start; padding-top: calc(32px + env(safe-area-inset-top,0px)); justify-content: space-between; gap: 12px; }
+    .brand { font-family: var(--type-title); letter-spacing: .12em; font-size: 25px; font-weight: 650; line-height: 1.3; }
+    .day-label { font-size: 12px; color: var(--muted); letter-spacing: .03em; margin-top: 9px; }
+    .intro { font-family: var(--type-title); font-size: 16px; font-weight: 400; color: var(--muted); letter-spacing: .09em; margin: 21px 0 0; }
+    .count-panel { text-align: center; padding: 62px 0 37px; }
+    .eyebrow { font-size: 13px; letter-spacing: .13em; color: var(--muted); }
+    .main-number { display: block; border: 0; background: none; margin: 15px auto 2px; padding: 0 14px; font-family: var(--type-numeric); font-weight: 400; font-size: clamp(100px,24vw,142px); letter-spacing: -.075em; font-variant-numeric: tabular-nums; line-height: 1.13; min-width: 110px; }
+    #app[data-theme="modern"] .main-number { font-weight: 250; font-size: clamp(103px,26vw,146px); letter-spacing: -.09em; }
+    .counter-unit { color: var(--muted); font-size: 13px; letter-spacing: .05em; }
+    .count-actions { display: flex; justify-content: center; align-items: center; gap: 28px; margin: 30px 0 0; }
+    .round-btn { width: 58px; height: 58px; display: inline-grid; place-items: center; border-radius: 100px; border: 1px solid var(--line); background: transparent; color: var(--ink); transition: transform .1s, background .15s; }
+    .round-btn:active { transform: scale(.95); }
+    .round-btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    .round-btn svg, .nav-item svg, .icon-button svg { display: block; width: 21px; height: 21px; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .subtle-action { border: 0; background: transparent; padding: 10px; color: var(--muted); font-size: 12px; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; }
+    .main-number.is-empty { color: var(--low); font-size: 108px !important; }
+    .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .section-heading h2 { font-weight: 500; font-size: 15px; letter-spacing: .03em; margin: 0; }
+    .section-heading small { font-size: 11px; color: var(--low); }
+    .notes-section { border-top: 1px solid var(--line); padding-top: 23px; margin-top: 8px; }
+    .notes-list { padding: 3px 0 1px; }
+    .note-line { display: flex; gap: 11px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .note-mark { margin-top: 7px; width: 4px; height: 4px; border-radius: 50%; background: var(--low); flex: 0 0 auto; }
+    .note-text { line-height: 1.6; font-size: 14px; flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .text-button { background: transparent; border: none; color: var(--muted); font-size: 12px; padding: 5px 0 5px 8px; }
+    .note-composer { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+    .note-input { width: 100%; min-width: 0; padding: 13px 0; background: transparent; border: none; border-bottom: 1px solid var(--line); border-radius: 0; outline-offset: 0; font-size: 13px; }
+    .note-input::placeholder { color: var(--low); }
+    .save-inline { border: 0; background: transparent; white-space: nowrap; padding: 10px 1px 10px 8px; color: var(--accent); font-weight: 600; font-size: 12px; }
+    .save-inline:disabled { color: var(--low); }
+    .past-edits { margin-top: 48px; border-top: 1px solid var(--line); padding: 19px 0 10px; }
+    .past-edits .section-heading { margin-bottom: 9px; }
+    .past-edits h2 { font-size: 12px; font-weight: 400; color: var(--muted); }
+    .tiny-change { border: none; border-bottom: 1px solid var(--line); padding: 14px 0; background: transparent; width: 100%; display: flex; text-align: left; align-items: center; justify-content: space-between; gap: 12px; }
+    .tiny-change:last-child { border-bottom: 0; }
+    .tiny-change span { font-size: 12px; color: var(--muted); }
+    .tiny-change strong { font-size: 13px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .tiny-change em { font-size: 12px; font-style: normal; color: var(--muted); padding-left: 8px; }
+    .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(100%,430px); background: var(--bg); border-top: 1px solid var(--line); padding: 13px 12px calc(13px + env(safe-area-inset-bottom,0px)); display: flex; justify-content: space-around; z-index: 10; }
+    .nav-item { border: 0; background: transparent; display: flex; width: 25%; min-height: 55px; gap: 6px; align-items: center; justify-content: center; flex-direction: column; color: var(--low); font-size: 10px; padding: 6px 0; }
+    .nav-item.active { color: var(--ink); }
+    .nav-item.active:after { content: ""; height: 3px; width: 3px; border-radius: 50%; background: var(--ink); position: absolute; bottom: calc(12px + env(safe-area-inset-bottom,0px)); }
+    .page-heading { font-family: var(--type-title); font-weight: 500; font-size: 27px; margin: 30px 0 10px; }
+    .page-caption { color: var(--muted); font-size: 13px; line-height: 1.8; margin: 0 0 26px; }
+    .calendar-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 22px; }
+    .calendar-month { font-size: 19px; letter-spacing: .01em; font-family: var(--type-title); }
+    .chev-button { border: none; background: transparent; width: 43px; height: 43px; color: var(--ink); font-size: 23px; }
+    .weekday-grid, .date-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); text-align: center; }
+    .weekday-grid { margin-bottom: 11px; }
+    .weekday-grid span { font-size: 11px; color: var(--low); padding: 4px 0; }
+    .day-cell { width: 100%; aspect-ratio: .84; min-height: 46px; border: 0; background: transparent; color: var(--ink); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-variant-numeric: tabular-nums; }
+    .day-cell.today-date .day-number { font-weight: 750; }
+    .day-cell.has-record { background: var(--soft); }
+    .day-cell.today-date { box-shadow: inset 0 0 0 1px var(--ink); }
+    .day-cell.is-future { color: var(--low); }
+    .day-number { font-size: 13px; }
+    .day-status { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+    .day-status.zero { background: transparent; border: 1px solid var(--accent); width: 5px; height: 5px; }
+    .day-status.blank { background: transparent; }
+    .calendar-legend { margin-top: 22px; display: flex; gap: 20px; justify-content: center; font-size: 11px; color: var(--muted); }
+    .legend-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--accent); vertical-align: middle; margin-right: 6px; }
+    .legend-dot.outline { background: none; border: 1px solid var(--accent); }
+    .legend-dot.blank { background: var(--line); }
+    .calendar-hint { border-top: 1px solid var(--line); margin-top: 32px; padding-top: 20px; font-size: 12px; line-height: 1.8; color: var(--muted); }
+    .detail-header { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+    .back { background: transparent; border: 0; padding: 10px 4px 10px 0; display: flex; align-items: center; font-size: 13px; gap: 7px; color: var(--muted); }
+    .back svg { width: 19px; height: 19px; stroke: currentColor; stroke-width: 1.8; fill: none; }
+    .detail-date { text-align: center; font-family: var(--type-title); font-size: 25px; margin: 29px 0 3px; }
+    .detail-subtitle { text-align: center; font-size: 12px; color: var(--muted); }
+    .detail-count { padding-top: 25px; padding-bottom: 24px; }
+    .detail-count .main-number { font-size: 101px; margin-top: 0; }
+    #app[data-theme="modern"] .detail-count .main-number { font-size: 105px; }
+    .detail-count .count-actions { margin-top: 18px; }
+    .history { margin-top: 46px; border-top: 1px solid var(--line); padding-top: 22px; }
+    .history h2 { font-weight: 500; font-size: 15px; margin: 0 0 19px; }
+    .history-track { margin-left: 5px; border-left: 1px solid var(--line); }
+    .history-entry { position: relative; padding-left: 21px; padding-bottom: 23px; }
+    .history-entry:before { content: ""; position: absolute; left: -3.5px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--low); }
+    .history-meta { color: var(--muted); font-size: 11px; letter-spacing: .01em; }
+    .history-descr { font-size: 13px; line-height: 1.75; margin-top: 5px; }
+    .history-descr strong { font-weight: 600; }
+    .history-descr .delta { color: var(--muted); font-weight: 400; padding-left: 6px; }
+    .empty-history { color: var(--low); font-size: 12px; line-height: 1.7; }
+    .period-picker { display: flex; gap: 4px; background: var(--raised); border-radius: 12px; padding: 4px; margin: 15px 0 30px; }
+    .period-picker button { flex: 1; padding: 10px 6px; font-size: 12px; border: none; background: transparent; border-radius: 9px; color: var(--muted); }
+    .period-picker button.selected { background: var(--paper); color: var(--ink); box-shadow: var(--shadow); font-weight: 600; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 14px 0 27px; border-bottom: 1px solid var(--line); }
+    .stat-title { color: var(--muted); font-size: 12px; }
+    .stat-number { font-family: var(--type-numeric); font-size: 46px; font-weight: 400; line-height: 1.4; font-variant-numeric: tabular-nums; }
+    .stat-unit { font-size: 12px; color: var(--muted); padding-left: 6px; }
+    .graph-area { margin: 37px 0 0; }
+    .graph-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 19px; }
+    .graph-head span:last-child { color: var(--muted); font-size: 11px; }
+    .bars { height: 162px; display: flex; align-items: end; justify-content: space-between; gap: 4px; border-bottom: 1px solid var(--line); }
+    .bar-col { flex: 1; height: 100%; display: flex; align-items: end; justify-content: center; min-width: 0; }
+    .bar { width: min(100%,19px); min-height: 0; background: var(--accent); opacity: .46; border-radius: 3px 3px 0 0; }
+    .bar.highlight { opacity: 1; }
+    .graph-range { display: flex; justify-content: space-between; color: var(--low); font-size: 11px; margin-top: 11px; }
+    .stats-foot { border-top: 1px solid var(--line); margin-top: 36px; padding-top: 20px; }
+    .stats-foot h3 { font-size: 14px; font-weight: 500; }
+    .stats-foot p { color: var(--muted); font-size: 12px; line-height: 1.8; }
+    .stats-change { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 12px; }
+    .stats-change span:last-child { font-variant-numeric: tabular-nums; }
+    .setting-group { margin-top: 34px; }
+    .setting-group h2 { font-size: 13px; color: var(--muted); font-weight: 500; margin: 0 0 14px; }
+    .skin-choice { padding: 17px 0; border-bottom: 1px solid var(--line); width: 100%; display: flex; justify-content: space-between; align-items: center; background: transparent; text-align: left; border-left: 0; border-right: 0; border-top: 0; }
+    .skin-choice strong { font-size: 14px; font-weight: 500; }
+    .skin-choice small { color: var(--muted); display: block; margin-top: 6px; line-height: 1.5; font-size: 11px; }
+    .radio-check { border: 1px solid var(--low); width: 19px; height: 19px; border-radius: 100px; display: grid; place-items: center; flex-shrink: 0; margin-left: 14px; }
+    .radio-check.on { border-color: var(--ink); }
+    .radio-check.on::after { content: ""; display: block; width: 9px; height: 9px; border-radius: 50%; background: var(--ink); }
+    .setting-button { display: block; width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 18px 0; text-align: left; font-size: 14px; }
+    .setting-button.danger { color: #9a4f45; }
+    .setting-hint { color: var(--muted); font-size: 11px; line-height: 1.8; margin-top: 10px; }
+    .about { margin: 42px 0 0; padding: 21px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.9; }
+    .about strong { color: var(--ink); font-family: var(--type-title); font-weight: 550; font-size: 15px; }
+    .dialog-layer { position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; z-index: 30; background: rgba(15,18,21,.33); padding: 20px; }
+    .dialog { width: min(100%,375px); background: var(--paper); color: var(--ink); border: 1px solid var(--line); padding: 27px 25px 22px; border-radius: 18px; box-shadow: 0 25px 70px rgba(0,0,0,.15); }
+    .dialog h2 { font-family: var(--type-title); font-size: 20px; font-weight: 500; margin: 0 0 10px; }
+    .dialog p { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 0 0 18px; }
+    .dialog input, .dialog textarea { font-size: 17px; width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 13px; outline: none; }
+    .dialog textarea { resize: vertical; min-height: 112px; font-size: 14px; line-height: 1.7; }
+    .dialog .modal-actions { display: flex; margin-top: 23px; gap: 9px; }
+    .modal-actions button { flex: 1; padding: 13px; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; background: transparent; }
+    .modal-actions button.commit { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    .dialog-error { margin-top: 9px; font-size: 11px; color: #af5047; }
+    #toast { position: fixed; left: 50%; bottom: calc(107px + env(safe-area-inset-bottom,0px)); transform: translate(-50%,10px); opacity: 0; pointer-events: none; background: var(--ink); color: var(--bg); padding: 10px 19px; border-radius: 30px; font-size: 12px; max-width: min(90%,360px); z-index: 50; transition: transform .2s, opacity .2s; white-space: nowrap; text-align: center; }
+    #toast.visible { opacity: 1; transform: translate(-50%,0); }
+    @media(prefers-reduced-motion: reduce) { *,*:before,*:after { transition-duration:0ms !important; animation-duration:0ms !important; scroll-behavior:auto !important; } }
+    @media(max-width:360px) { #viewport { padding-left:19px; padding-right:19px; } .count-panel { padding-top: 41px; } .past-edits { margin-top: 30px; } }
+  </style>
+</head>
+<body>
+<div id="app" data-theme="paper">
+  <main id="viewport"><div id="content">
+    <div style="padding-top:62px;max-width:350px;margin:0 auto;line-height:1.9;color:#292723">
+      <div style="font-family:Songti SC,serif;font-size:30px;letter-spacing:.12em">错事</div>
+      <div style="font-family:Songti SC,serif;font-size:24px;margin:40px 0 8px">错了就错了。</div>
+      <p style="font-size:14px;color:#847f75">先放在这里吧。</p>
+      <p style="font-size:13px;color:#847f75;margin-top:55px">正在打开交互原型……</p>
+      <p style="font-size:13px;color:#847f75">如果一直停留在这里，说明当前文件预览器未运行网页脚本。请使用浏览器打开已部署的 HTTPS 网址。</p>
+    </div>
+  </div></main>
+  <nav class="nav" id="bottom-nav" aria-label="主导航"></nav>
+  <div id="dialog-root"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden aria-label="选择错事备份 JSON 文件" />
+</div>
+<script>
+(() => {
+  'use strict';
+  const STORAGE = 'cuoshi-standalone-prototype-v01'; // 保留旧存储键，升级不会丢掉数据
+  let recoveryIssue = null;
+  const MAX = 9999;
+  const icons = {
+    today:'<path d="M3 10.5 12 3l9 7.5V21h-6v-7H9v7H3z"/>',
+    calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/>',
+    stats:'<path d="M4 21V13M10 21V8M16 21V3M22 21v-9"/>',
+    settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.05.05-2 2-.05-.05A1.7 1.7 0 0 0 15.9 18.5a1.7 1.7 0 0 0-1.1 1.55V21h-3v-.95a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.84.37l-.05.05-2-2 .05-.05A1.7 1.7 0 0 0 7.2 15a1.7 1.7 0 0 0-1.56-1.05H4.7v-3h.94A1.7 1.7 0 0 0 7.2 9.9a1.7 1.7 0 0 0-.34-1.87l-.05-.05 2-2 .05.05A1.7 1.7 0 0 0 10.7 6.4a1.7 1.7 0 0 0 1.1-1.55V4h3v.85a1.7 1.7 0 0 0 1.1 1.55 1.7 1.7 0 0 0 1.84-.37l.05-.05 2 2-.05.05A1.7 1.7 0 0 0 19.4 9.9a1.7 1.7 0 0 0 1.56 1.05h.94v3h-.94A1.7 1.7 0 0 0 19.4 15z"/>',
+    arrow:'<path d="m14 6-6 6 6 6"/>',
+    plus:'<path d="M12 5v14M5 12h14"/>',
+    minus:'<path d="M5 12h14"/>'
+  };
+  const app = document.getElementById('app');
+  const content = document.getElementById('content');
+  const nav = document.getElementById('bottom-nav');
+  const dialog = document.getElementById('dialog-root');
+  const importFile = document.getElementById('import-file');
+  let toastHandle = null;
+  let tab = 'today';
+  let selectedDate = null;
+  let month = null;
+  let period = 'month';
+  let draftNote = '';
+
+  function localDate(d = new Date()) {
+    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  const today = () => localDate();
+  function shiftDate(key, days) {
+    const [y,m,d]=key.split('-').map(Number);
+    return localDate(new Date(y,m-1,d+days,12));
+  }
+  function dateObject(key) { const [y,m,d] = key.split('-').map(Number); return new Date(y,m-1,d,12); }
+  function dateLabel(key, includeYear = false) {
+    const d = dateObject(key); return `${includeYear ? d.getFullYear()+'年' : ''}${d.getMonth()+1}月${d.getDate()}日`;
+  }
+  function weekDay(key) { return '日一二三四五六'[dateObject(key).getDay()]; }
+  function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function svg(name) { return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`; }
+  function id() { return 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); }
+  function timezone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'; } catch { return 'local'; } }
+  function nowMetadata() { return { at:new Date().toISOString(), opDate:today(), timezone:timezone() }; }
+  function getDay(key) { return state.days[key] || {count:null,notes:[]}; }
+  function typeNum(v) { return Number.isInteger(v) && v>=0 && v<=MAX; }
+  function isDate(s) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) && localDate(dateObject(s))===s;
+  }
+  function makeEvent(targetDate,type,before,after,extra={}) {
+    return {id:id(),...nowMetadata(),targetDate,type,before,after,delta:(typeNum(before)&&typeNum(after))?after-before:null,...extra};
+  }
+  function emptyState() { return {version:1,theme:'paper',days:{},events:[]}; }
+  function load() {
+    let raw;
+    try { raw=localStorage.getItem(STORAGE); }
+    catch(e) { recoveryIssue={message:'当前浏览器无法读取本地存储。', raw:null}; console.error(e); return emptyState(); }
+    if(!raw) return emptyState();
+    try {const saved=JSON.parse(raw);validate(saved);return saved;}
+    catch(e) {
+      console.error('已有数据未通过完整性检查。原始内容不会被覆盖。',e);
+      recoveryIssue={message:'本地记录需要恢复，已暂停保存以保护原始内容。',raw};
+      return emptyState();
+    }
+  }
+  let state = load();
+  function persist(next) {
+    if(recoveryIssue) { showToast('无法保存：请先处理本地数据恢复'); return false; }
+    try { localStorage.setItem(STORAGE,JSON.stringify(next)); state=next; app.dataset.theme=next.theme; return true; }
+    catch(e) { showToast('保存失败，请检查浏览器存储空间'); console.error(e); return false; }
+  }
+  function transaction(fn) {
+    const next=JSON.parse(JSON.stringify(state));
+    fn(next);
+    if(persist(next)) render();
+  }
+  function changeCount(key,nextValue) {
+    if(key>today()) return showToast('还不能记录未来的日期');
+    if(!typeNum(nextValue)) return showToast('请输入 0～9999 的整数');
+    const current=getDay(key).count;
+    if(current===nextValue) return;
+    transaction(next=>{
+      const day=next.days[key] || {count:null,notes:[]};
+      day.count=nextValue;
+      next.days[key]=day;
+      next.events.push(makeEvent(key,current===null?'initial':'count',current,nextValue));
+    });
+    showToast(key<today() ? '已保存，过去的判断也留了痕' : '先放在这里吧');
+  }
+  function adjustCount(key,delta) {
+    const old=getDay(key).count;
+    if(old===null && delta<0) return showToast('这一天还没有记录');
+    const next=Math.min(MAX, Math.max(0,(old??0)+delta));
+    changeCount(key,next);
+  }
+  function addNote(key,text) {
+    const v=text.trim(); if(!v) return; if(v.length>300) return showToast('简记最多 300 字');
+    if(key>today()) return;
+    transaction(next=>{
+      const day=next.days[key] || {count:null,notes:[]};
+      const noteId=id(); day.notes.push({id:noteId,text:v,createdAt:new Date().toISOString()});
+      next.days[key]=day;
+      next.events.push(makeEvent(key,'note_add',day.count,day.count,{noteId,oldText:null,newText:v}));
+    });
+    draftNote=''; showToast('这几个字也放在这里了');
+  }
+  function editNote(key,noteId,text) {
+    const v=text.trim(); if(!v) return showToast('若要移除这条简记，请选择删除');
+    if(v.length>300) return showToast('简记最多 300 字');
+    const before=getDay(key).notes.find(n=>n.id===noteId); if(!before || before.text===v)return;
+    transaction(next=>{
+      const d=next.days[key]; const n=d.notes.find(n=>n.id===noteId); const old=n.text;
+      n.text=v; n.updatedAt=new Date().toISOString();
+      next.events.push(makeEvent(key,'note_edit',d.count,d.count,{noteId,oldText:old,newText:v}));
+    }); showToast('简记已更新，旧文还在历史里');
+  }
+  function deleteNote(key,noteId) {
+    const note=getDay(key).notes.find(n=>n.id===noteId); if(!note)return;
+    transaction(next=>{
+      const d=next.days[key]; d.notes=d.notes.filter(n=>n.id!==noteId);
+      next.events.push(makeEvent(key,'note_delete',d.count,d.count,{noteId,oldText:note.text,newText:null}));
+    }); showToast('简记已移除，修改历史仍会保留');
+  }
+  function undoRecord(key) {
+    if(getDay(key).count===null) return;
+    transaction(next=>{
+      const day=next.days[key]; const old=day.count; day.count=null;
+      next.events.push(makeEvent(key,'unrecord',old,null));
+    }); showToast('已撤回为未记录，历史仍保留');
+  }
+  function showToast(message) {
+    const el=document.getElementById('toast'); el.textContent=message; el.classList.add('visible');
+    clearTimeout(toastHandle); toastHandle=setTimeout(()=>el.classList.remove('visible'),2300);
+  }
+  function openDialog(markup, initializer) {
+    dialog.innerHTML=`<div class="dialog-layer"><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">${markup}</section></div>`;
+    dialog.querySelector('.dialog-layer').addEventListener('click',e=>{if(e.target.classList.contains('dialog-layer'))closeDialog();});
+    const cancel=dialog.querySelector('[data-close]'); if(cancel)cancel.addEventListener('click',closeDialog);
+    if(initializer)initializer();
+    dialog.querySelector('input:not([type=file]), textarea, button')?.focus();
+  }
+  function closeDialog() { dialog.innerHTML=''; }
+  function numberEditor(key) {
+    const old=getDay(key).count;
+    openDialog(`<h2 id="dialog-title">${dateLabel(key)}的错事</h2><p>直接输入现在觉得的数量。过去的数字不会被抹去。</p><input aria-label="错事数量" id="editor-number" type="number" min="0" max="9999" step="1" inputmode="numeric" value="${old??''}" placeholder="0—9999"/><div id="editor-error" class="dialog-error" aria-live="polite"></div><div class="modal-actions"><button type="button" data-close>取消</button><button type="button" class="commit" id="editor-save">保存</button></div>`,()=>{
+      const input=dialog.querySelector('#editor-number');
+      const save=()=>{
+        const n=Number(input.value);
+        if(input.value.trim()==='' || !/^\d+$/.test(input.value.trim()) || !typeNum(n)) { dialog.querySelector('#editor-error').textContent='请输入 0～9999 的整数';return; }
+        closeDialog();changeCount(key,n);
+      };
+      dialog.querySelector('#editor-save').addEventListener('click',save);
+      input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
+    });
+  }
+  function noteEditor(key,noteId) {
+    const n=getDay(key).notes.find(n=>n.id===noteId);if(!n)return;
+    openDialog(`<h2 id="dialog-title">修改简记</h2><p>只改变这几个字，不影响当天的错事数量。</p><textarea id="editor-note" maxlength="300" aria-label="修改简记">${escapeHtml(n.text)}</textarea><div class="modal-actions"><button data-close>取消</button><button class="commit" id="note-save">保存</button></div><button class="text-button" id="note-delete" style="margin-top:18px">删除这条简记</button>`,()=>{
+      dialog.querySelector('#note-save').addEventListener('click',()=>{const v=dialog.querySelector('#editor-note').value;closeDialog();editNote(key,noteId,v);});
+      dialog.querySelector('#note-delete').addEventListener('click',()=>{closeDialog();deleteNote(key,noteId);});
+    });
+  }
+  function confirmUnrecord(key) {
+    openDialog(`<h2 id="dialog-title">撤回这一天的记录？</h2><p>这会把数字恢复为「未记录」，而不是改成 0。已有简记和变更历史仍然保留。</p><div class="modal-actions"><button data-close>取消</button><button id="confirm-unrecord" class="commit">撤回记录</button></div>`,()=>{
+      dialog.querySelector('#confirm-unrecord').addEventListener('click',()=>{closeDialog();undoRecord(key);});
+    });
+  }
+  function noteArea(key) {
+    const day=getDay(key);
+    return `<section class="notes-section" aria-label="可选简记"><div class="section-heading"><h2>留几个字</h2><small>选填 · 与数字独立</small></div>
+      <div class="notes-list">${day.notes.map(n=>`<div class="note-line"><i class="note-mark" aria-hidden="true"></i><span class="note-text">${escapeHtml(n.text)}</span><button class="text-button" data-action="edit-note" data-date="${key}" data-id="${escapeHtml(n.id)}" aria-label="编辑简记：${escapeHtml(n.text)}">编辑</button></div>`).join('')}</div>
+      <form class="note-composer" data-note-date="${key}"><input class="note-input" maxlength="300" name="note" aria-label="简短记录（选填）" placeholder="想留几个字也可以……" autocomplete="off"/><button class="save-inline" type="submit">留下</button></form></section>`;
+  }
+  function counter(key,compact=false) {
+    const v=getDay(key).count;
+    return `<div class="count-panel ${compact?'detail-count':''}"><div class="eyebrow">${key===today()?'今天做错了':'现在觉得这一天有'}</div>
+      <button type="button" class="main-number ${v===null?'is-empty':''}" data-action="edit-count" data-date="${key}" aria-label="${v===null?'尚未记录':v+'件错事'}，点击输入数量">${v===null?'—':v}</button>
+      <div class="counter-unit">${v===null?'还没有记录':'件错事 · 点击数字可直接修改'}</div>
+      <div class="count-actions"><button aria-label="减少一件错事" class="round-btn" data-action="minus" data-date="${key}" ${v===null||v===0?'disabled':''}>${svg('minus')}</button><button aria-label="记一件错事" class="round-btn primary" data-action="plus" data-date="${key}" ${v===MAX?'disabled':''}>${svg('plus')}</button></div>
+      ${v===null?`<button class="subtle-action" data-action="zero" data-date="${key}">或者，记为 0 件</button>`:''}</div>`;
+  }
+  function eventsFor(key) { return state.events.filter(e=>e.targetDate===key).slice().reverse(); }
+  function eventsOnOpDate(key) { return state.events.filter(e=>e.opDate===key && e.targetDate<e.opDate && ['initial','count','unrecord'].includes(e.type)).slice().reverse(); }
+  function eventText(e) {
+    if(e.type==='initial')return e.targetDate<e.opDate?`补记 ${e.after} 件`:`首次记录 ${e.after} 件`;
+    if(e.type==='unrecord')return '撤回为未记录';
+    if(e.type==='count')return `${e.before} → ${e.after} <span class="delta">${e.delta>0?'+':''}${e.delta} 件</span>`;
+    if(e.type==='note_add')return '新增简记「'+escapeHtml(e.newText)+'」';
+    if(e.type==='note_edit')return '修改简记「'+escapeHtml(e.oldText)+'」→「'+escapeHtml(e.newText)+'」';
+    if(e.type==='note_delete')return '删除简记「'+escapeHtml(e.oldText)+'」';
+    return '更新记录';
+  }
+  function todayChanges() {
+    const es=eventsOnOpDate(today());if(!es.length)return '';
+    return `<div class="past-edits" aria-label="今天对过去的修改"><div class="section-heading"><h2>今天也改了过去的记录</h2><small>${es.length} 次</small></div>
+    ${es.map(e=>`<button class="tiny-change" data-action="detail" data-date="${e.targetDate}"><span>${dateLabel(e.targetDate)}${e.type==='count'?'':' · '+(e.type==='initial'?'补记':e.type==='unrecord'?'撤回':'简记')}</span><strong>${e.type==='count'?`${e.before} → ${e.after}<em>${e.delta>0?'+':''}${e.delta}</em>`:eventText(e)}</strong></button>`).join('')}</div>`;
+  }
+  function renderToday() {
+    const key=today();
+    return `<header class="app-header"><div class="brand">错事</div><div class="day-label">${dateLabel(key)} · 星期${weekDay(key)}</div></header>
+      <p class="intro">错了就错了，先放在这里吧。</p>${counter(key)}${noteArea(key)}${todayChanges()}`;
+  }
+  function renderCalendar() {
+    if(!month)month=today().slice(0,7);
+    const [yy,mm]=month.split('-').map(Number), first=new Date(yy,mm-1,1,12), maxDate=new Date(yy,mm,0,12).getDate();
+    const start=(first.getDay()+6)%7; const cells=[];
+    for(let i=0;i<start;i++)cells.push('<div aria-hidden="true"></div>');
+    for(let d=1;d<=maxDate;d++){
+      const key=`${yy}-${String(mm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const v=getDay(key).count; const future=key>today();
+      const status=v===null?'未记录':v===0?'记录为0':`记录为${v}`;
+      cells.push(`<button type="button" data-action="detail" data-date="${key}" class="day-cell ${v!==null?'has-record':''} ${key===today()?'today-date':''} ${future?'is-future':''}" ${future?'disabled':''} aria-label="${dateLabel(key,true)}，${status}${key===today()?'，今天':''}"><span class="day-number">${d}</span><span class="day-status ${v===0?'zero':v===null?'blank':''}"></span></button>`);
+    }
+    while(cells.length%7)cells.push('<div aria-hidden="true"></div>');
+    const canNext=month<today().slice(0,7);
+    return `<header class="app-header"><div class="brand">错事</div><div class="day-label">看看过去</div></header><h1 class="page-heading">日历</h1><p class="page-caption">哪一天都可以重新看看。</p>
+      <div class="calendar-head"><button class="chev-button" data-action="prev-month" aria-label="上个月">‹</button><div class="calendar-month">${yy}年 ${mm}月</div><button class="chev-button" data-action="next-month" aria-label="下个月" ${canNext?'':'disabled'}>›</button></div>
+      <div class="weekday-grid">${['一','二','三','四','五','六','日'].map(x=>`<span>${x}</span>`).join('')}</div>
+      <div class="date-grid">${cells.join('')}</div><div class="calendar-legend"><span><i class="legend-dot"></i>有记录</span><span><i class="legend-dot outline"></i>记为 0</span><span><i class="legend-dot blank"></i>未记录</span></div>
+      <div class="calendar-hint">数字是你现在对那一天的判断。点开日期，可以查看、修改，也能看到从前怎么想。</div>`;
+  }
+  function renderHistory(key) {
+    const es=eventsFor(key);if(!es.length)return `<p class="empty-history">这一天还没有变更历史。</p>`;
+    return `<div class="history-track">${es.map(e=>`<div class="history-entry"><div class="history-meta">${dateLabel(e.opDate,true)} · ${new Date(e.at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',timeZone:e.timezone==='local'?undefined:e.timezone})} · ${escapeHtml(e.timezone||'本地时间')}</div><div class="history-descr">${eventText(e)}</div></div>`).join('')}</div>`;
+  }
+  function renderDetail() {
+    const key=selectedDate||today(); const day=getDay(key);
+    return `<div class="detail-header"><button class="back" data-action="back-calendar">${svg('arrow')} 返回日历</button>${day.count!==null?`<button class="text-button" data-action="unrecord" data-date="${key}">撤回记录</button>`:''}</div>
+      <h1 class="detail-date">${dateLabel(key,true)}</h1><div class="detail-subtitle">星期${weekDay(key)}</div>
+      ${counter(key,true)}${noteArea(key)}<section class="history"><h2>修改历史</h2>${renderHistory(key)}</section>`;
+  }
+  function dateRange() {
+    const t=dateObject(today()); let start,end;
+    if(period==='week') { const offset=(t.getDay()+6)%7; start=new Date(t.getFullYear(),t.getMonth(),t.getDate()-offset,12);end=new Date(t.getFullYear(),t.getMonth(),t.getDate()+6-offset,12); }
+    else if(period==='month') { start=new Date(t.getFullYear(),t.getMonth(),1,12);end=new Date(t.getFullYear(),t.getMonth()+1,0,12); }
+    else { start=new Date(t.getFullYear(),0,1,12);end=new Date(t.getFullYear(),11,31,12); }
+    return {start:localDate(start),end:localDate(end)};
+  }
+  function statsData() {
+    const {start,end}=dateRange(); const valid=Object.entries(state.days).filter(([k,v])=>k>=start&&k<=end&&k<=today()&&v.count!==null);
+    const sum=valid.reduce((n,[,v])=>n+v.count,0); const recorded=valid.length;
+    const changes=state.events.filter(e=>e.opDate>=start&&e.opDate<=end&&e.targetDate<e.opDate && e.type==='count');
+    const increased=changes.reduce((s,e)=>s+Math.max(e.delta,0),0);
+    const decreased=changes.reduce((s,e)=>s+Math.max(-e.delta,0),0);
+    let bars=[];
+    if(period==='week') { for(let i=0;i<7;i++){const k=shiftDate(start,i);bars.push({key:k,label:'一二三四五六日'[i],value:getDay(k).count, future:k>today()});} }
+    else if(period==='month') { const [y,m]=start.split('-').map(Number); const max=new Date(y,m,0).getDate(); for(let i=1;i<=max;i++){const k=`${y}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`; bars.push({key:k,label:String(i),value:getDay(k).count,future:k>today()});} }
+    else { for(let m=0;m<12;m++){const y=Number(start.slice(0,4)), prefix=`${y}-${String(m+1).padStart(2,'0')}`; const arr=valid.filter(([k])=>k.startsWith(prefix));bars.push({key:prefix,label:String(m+1),value:arr.reduce((s,[,v])=>s+v.count,0),future:prefix>today().slice(0,7)});} }
+    return {sum,recorded,increased,decreased,changes,bars,start,end};
+  }
+  function renderStats() {
+    const d=statsData(); const nonNull=d.bars.filter(b=>b.value!==null&&!b.future).map(b=>b.value);
+    const max=Math.max(1,...nonNull);
+    return `<header class="app-header"><div class="brand">错事</div><div class="day-label">不必评分</div></header><h1 class="page-heading">统计</h1><p class="page-caption">看看记录，不用给自己打分。</p>
+      <div class="period-picker" role="group" aria-label="统计范围">${[['week','本周'],['month','本月'],['year','今年']].map(([k,label])=>`<button data-action="period" data-period="${k}" class="${period===k?'selected':''}" aria-pressed="${period===k}">${label}</button>`).join('')}</div>
+      <div class="stat-grid"><div><div class="stat-title">目前记录的错事</div><div><span class="stat-number">${d.sum}</span><span class="stat-unit">件</span></div></div><div><div class="stat-title">有记录的日子</div><div><span class="stat-number">${d.recorded}</span><span class="stat-unit">天</span></div></div></div>
+      <section class="graph-area"><div class="graph-head"><strong style="font-weight:500">记录分布</strong><span>${period==='week'?'周一 — 周日':period==='month'?'本月每日':'一月 — 十二月'}</span></div>
+      <div class="bars" role="img" aria-label="${period==='week'?'本周':period==='month'?'本月':'今年'}，记录分布图。记录总量${d.sum}件；空白日期未计为零。">${d.bars.map((b,i)=>`<div class="bar-col"><div class="bar ${b.key===today()||b.key===today().slice(0,7)?'highlight':''}" style="height:${b.value===null||b.future?0:Math.max(2,(b.value/max)*92)}%" title="${escapeHtml(b.label)}：${b.value===null?'未记录':b.value+'件'}"></div></div>`).join('')}</div><div class="graph-range"><span>${period==='week'?'周一':period==='month'?'1日':'1月'}</span><span>${period==='week'?'周日':period==='month'?'月末':'12月'}</span></div></section>
+      <section class="stats-foot"><h3>对过去的调整</h3><div class="stats-change"><span>认为少了</span><span>${d.decreased} 件</span></div><div class="stats-change"><span>认为多了</span><span>${d.increased} 件</span></div><p>这里只统计已记录日期当前的数量。没有记录的日子不会被当作 0；增加和减少也不代表好坏。</p></section>`;
+  }
+  function renderSettings() {
+    return `<header class="app-header"><div class="brand">错事</div><div class="day-label">你自己的空间</div></header><h1 class="page-heading">设置</h1><p class="page-caption">让它更像你喜欢的样子。</p>
+      <section class="setting-group"><h2>外观</h2><button class="skin-choice" data-action="theme" data-theme="paper" aria-pressed="${state.theme==='paper'}"><span><strong>纸张与文字</strong><small>暖纸白、深灰文字，像一本私人手记</small></span><span class="radio-check ${state.theme==='paper'?'on':''}"></span></button>
+      <button class="skin-choice" data-action="theme" data-theme="modern" aria-pressed="${state.theme==='modern'}"><span><strong>现代极简</strong><small>清爽中性色，把注意力交给数字与日期</small></span><span class="radio-check ${state.theme==='modern'?'on':''}"></span></button></section>
+      <section class="setting-group"><h2>数据</h2><button class="setting-button" data-action="export">导出完整备份 <span aria-hidden="true">↗</span></button><button class="setting-button" data-action="import">导入备份</button><button class="setting-button danger" data-action="clear">删除全部记录</button><p class="setting-hint">你的记录与修改历史仅保存在这个浏览器中。清理浏览器数据或换设备可能会丢失记录，建议自行导出备份。备份包含私人文字，请妥善保管。</p></section>
+      <section class="about"><strong>错事</strong><br>错了就错了，先放在这里吧。<br><br>这是网页版 v0.2。记录只保存在当前浏览器，不提供云同步，也不作为心理治疗工具。</section>`;
+  }
+  function renderNav() {
+    const items=[['today','今天'],['calendar','日历'],['stats','统计'],['settings','设置']];
+    nav.innerHTML=items.map(([key,label])=>`<button class="nav-item ${tab===key?'active':''}" data-tab="${key}" aria-current="${tab===key?'page':'false'}">${svg(key)}<span>${label}</span></button>`).join('');
+  }
+  function renderRecovery() {
+    content.innerHTML=`<header class="app-header"><div class="brand">错事</div></header><h1 class="page-heading">先保护你的记录</h1>
+      <p class="page-caption">${recoveryIssue.message}。这里不会自动清空或覆盖已有记录。</p>
+      ${recoveryIssue.raw?`<button class="setting-button" data-action="export-raw">下载原始数据以备恢复</button>`:''}
+      <button class="setting-button danger" data-action="reset-storage">确认放弃并重新开始</button>
+      <p class="setting-hint">只有选择重新开始才会删除旧数据；如果这些记录很重要，请先保留下载文件。</p>`;
+    nav.innerHTML='';
+  }
+  function downloadRaw() {
+    if(!recoveryIssue?.raw)return;
+    const blob=new Blob([recoveryIssue.raw],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=`cuoshi-recovery-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);
+  }
+  function resetStorage() {
+    openDialog(`<h2 id="dialog-title">确认放弃旧记录？</h2><p>这会永久清除浏览器当前保存的原始数据。如有需要，请先下载一份。</p><div class="modal-actions"><button data-close>取消</button><button id="confirm-reset" class="commit">确认清除并重新开始</button></div>`,()=>{
+      dialog.querySelector('#confirm-reset').addEventListener('click',()=>{
+        try { localStorage.removeItem(STORAGE);recoveryIssue=null;state=emptyState();closeDialog();goTab('today'); }
+        catch(e){showToast('清理失败，请检查浏览器存储权限');}
+      });
+    });
+  }
+  function render() {
+    app.dataset.theme=state.theme;
+    if(recoveryIssue) { renderRecovery(); return; }
+    content.innerHTML=tab==='today'?renderToday():tab==='calendar'?(selectedDate?renderDetail():renderCalendar()):tab==='stats'?renderStats():renderSettings();
+    renderNav();
+    // The note field is intentionally ephemeral; nothing requires an explanation to save a count.
+  }
+  function goTab(next) { tab=next; selectedDate=null; draftNote='';render();window.scrollTo(0,0); }
+  function goDetail(key) { if(!isDate(key)||key>today())return; tab='calendar'; selectedDate=key; render();window.scrollTo(0,0); }
+  function monthShift(change) {const [y,m]=month.split('-').map(Number);const d=new Date(y,m-1+change,1,12);month=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;render();}
+  function download() {
+    const data=JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2);
+    const blob=new Blob([data],{type:'application/json;charset=utf-8'});
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`错事备份_${today()}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
+    showToast('已生成完整备份，请妥善保管');
+  }
+  function validate(s) {
+    if(!s||s.version!==1||!['paper','modern'].includes(s.theme)||!s.days||typeof s.days!=='object'||Array.isArray(s.days)||!Array.isArray(s.events))throw Error('无效版本或格式');
+    for(const [k,day] of Object.entries(s.days)){
+      if(!isDate(k)||!day||!(day.count===null||typeNum(day.count))||!Array.isArray(day.notes))throw Error('日期记录格式不正确');
+      for(const n of day.notes)if(!n||typeof n.id!=='string'||typeof n.text!=='string'||n.text.length>300)throw Error('简记不合法');
+    }
+    const ids=new Set();
+    for(const e of s.events){
+      if(!e||typeof e.id!=='string'||ids.has(e.id)||!isDate(e.targetDate)||!isDate(e.opDate)||typeof e.at!=='string'||!Number.isFinite(Date.parse(e.at))||typeof e.timezone!=='string'||!['initial','count','unrecord','note_add','note_edit','note_delete'].includes(e.type))throw Error('变更历史格式不正确');
+      if(!(e.before===null||typeNum(e.before))||!(e.after===null||typeNum(e.after)))throw Error('数量格式不正确');
+      if(e.timezone!=='local'){try{new Intl.DateTimeFormat('zh-CN',{timeZone:e.timezone});}catch{throw Error('时区不合法');}}
+      if(e.delta!==((typeNum(e.before)&&typeNum(e.after))?e.after-e.before:null))throw Error('变化量不一致');
+      ids.add(e.id);
+    }
+    // Reconstruct numerical snapshots, checking each event's before-state and the final record.
+    const snapshots={};
+    for(const e of s.events){
+      if(['initial','count','unrecord'].includes(e.type)){
+        const prior=Object.hasOwn(snapshots,e.targetDate)?snapshots[e.targetDate]:null;
+        if(e.before!==prior)throw Error('变更历史不连续');
+        if(e.type==='initial'&&e.before!==null)throw Error('首次记录事件错误');
+        if(e.type==='count'&&(!typeNum(e.before)||!typeNum(e.after)))throw Error('数字调整事件错误');
+        if(e.type==='unrecord'&&e.after!==null)throw Error('撤回事件错误');
+        snapshots[e.targetDate]=e.after;
+      }
+    }
+    for(const [key,day]of Object.entries(s.days))if(day.count!==(Object.hasOwn(snapshots,key)?snapshots[key]:null))throw Error('当前数据与修改历史不一致');
+    return true;
+  }
+  function importBackup(file) {
+    if(file.size>15*1024*1024)return showToast('文件过大，无法导入');
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try {
+        const parsed=JSON.parse(String(reader.result));validate(parsed);
+        openDialog(`<h2 id="dialog-title">导入这份备份？</h2><p>验证通过：${Object.keys(parsed.days).length} 个日期、${parsed.events.length} 条修改历史。导入将替换当前浏览器里的全部记录，建议先导出一份备份。</p><div class="modal-actions"><button data-close>取消</button><button class="commit" id="confirm-import">替换并导入</button></div>`,()=>{
+          dialog.querySelector('#confirm-import').addEventListener('click',()=>{closeDialog(); if(persist({version:1,theme:parsed.theme,days:parsed.days,events:parsed.events})){goTab('today');showToast('备份导入完成');}});
+        });
+      } catch(e) {showToast('导入失败：'+(e.message||'文件格式不正确'));}
+    };reader.readAsText(file);
+  }
+  function clearAll() {
+    openDialog(`<h2 id="dialog-title">删除全部记录？</h2><p>这会清除所有日期、简记与完整修改历史，不能从应用内恢复。请先导出备份。</p><div class="modal-actions"><button data-close>取消</button><button class="commit" id="confirm-clear">确认删除</button></div>`,()=>{
+      dialog.querySelector('#confirm-clear').addEventListener('click',()=>{
+        closeDialog();const clean={version:1,theme:state.theme,days:{},events:[]};
+        if(persist(clean)){goTab('today');showToast('所有记录已删除');}
+      });
+    });
+  }
+  document.addEventListener('click',e=>{
+    const t=e.target.closest('button');if(!t || dialog.contains(t))return;
+    if(t.dataset.action==='export-raw')return downloadRaw();
+    if(t.dataset.action==='reset-storage')return resetStorage();
+    if(t.dataset.tab)return goTab(t.dataset.tab);
+    const key=t.dataset.date, action=t.dataset.action;
+    if(action==='plus')adjustCount(key,1);
+    if(action==='minus')adjustCount(key,-1);
+    if(action==='zero')changeCount(key,0);
+    if(action==='edit-count')numberEditor(key);
+    if(action==='edit-note')noteEditor(key,t.dataset.id);
+    if(action==='detail')goDetail(key);
+    if(action==='unrecord')confirmUnrecord(key);
+    if(action==='back-calendar'){selectedDate=null;render();window.scrollTo(0,0);}
+    if(action==='prev-month')monthShift(-1);
+    if(action==='next-month'&&month<today().slice(0,7))monthShift(1);
+    if(action==='period'){period=t.dataset.period;render();}
+    if(action==='theme')transaction(s=>{s.theme=t.dataset.theme;});
+    if(action==='export')download();
+    if(action==='import')importFile.click();
+    if(action==='clear')clearAll();
+  });
+  document.addEventListener('submit',e=>{
+    if(e.target.matches('[data-note-date]')){e.preventDefault();const input=e.target.elements.note;addNote(e.target.dataset.noteDate,input.value);}
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape' && dialog.innerHTML !== '')closeDialog();});
+  importFile.addEventListener('change',()=>{const file=importFile.files?.[0];if(file)importBackup(file);importFile.value='';});
+  // Small test hook for local browser acceptance checks; never exposed as navigation or UI.
+  // 本地行为均在浏览器内完成；生产页面不暴露修改数据的调试入口。
+  try { app.dataset.theme=state.theme; render(); }
+  catch (error) { console.error('错事启动失败', error); const note = document.querySelector('#content p'); if (note) note.textContent='启动失败，请尝试在 Safari 或 Chrome 中重新打开此网页。'; }
+  // HTTPS 与 localhost 上提供离线可用能力；文件预览模式不会注册 Service Worker。
+  if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1')) {
+    window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  }
+})();
+</script>
+</body>
+</html>
