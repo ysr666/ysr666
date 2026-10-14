@@ -78,7 +78,8 @@
     .save-inline:disabled { color: var(--low); }
     .draft-hint { margin: 7px 0 0; color: var(--muted); font-size: 12px; min-height: 15px; line-height: 1.5; }
     .draft-hint:empty { display: none; }
-    .past-edits { margin-top: 48px; border-top: 1px solid var(--line); padding: 19px 0 10px; }
+    .past-edits { margin-top: 43px; border-top: 1px solid var(--line); padding: 5px 0 8px; }
+    .past-edit-summary { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 13px 1px; border: 0; background: none; color: var(--muted); font-size: 12px; text-align: left; }
     .past-edits .section-heading { margin-bottom: 9px; }
     .past-edits h2 { font-size: 12px; font-weight: 400; color: var(--muted); }
     .tiny-change { border: none; border-bottom: 1px solid var(--line); padding: 14px 0; background: transparent; width: 100%; display: flex; text-align: left; align-items: center; justify-content: space-between; gap: 12px; }
@@ -226,6 +227,8 @@
   const BACKUP_META = 'cuoshi-last-verified-backup-v01'; // 与私人记录分开存放
   const DRAFT_STORAGE = 'cuoshi-note-drafts-v03'; // 只暂存尚未提交的简记，不记入事件历史
   let recoveryIssue = null;
+  let lastStoredSnapshot = null;
+  const WRITE_LOCK = 'cuoshi-v01-state-lock';
   const MAX = 9999;
   const icons = {
     today:'<path d="M3 10.5 12 3l9 7.5V21h-6v-7H9v7H3z"/>',
@@ -282,7 +285,7 @@
   function emptyState() { return {version:1,theme:'paper',days:{},events:[]}; }
   function load() {
     let raw;
-    try { raw=localStorage.getItem(STORAGE); }
+    try { raw=localStorage.getItem(STORAGE); lastStoredSnapshot=raw; }
     catch(e) { recoveryIssue={message:'当前浏览器无法读取本地存储。', raw:null}; console.error(e); return emptyState(); }
     if(!raw) return emptyState();
     try {const saved=JSON.parse(raw);validate(saved);return saved;}
@@ -302,7 +305,12 @@
   }
   drafts=loadDrafts();
   function storeDraft(key,text) {
-    if(!isDate(key) || typeof text!=='string')return;
+    if(!isDate(key) || typeof text!=='string')return false;
+    // Merge drafts left by other tabs before saving; don't erase unrelated dates.
+    try {
+      const current=JSON.parse(localStorage.getItem(DRAFT_STORAGE)||'{}');
+      if(current && typeof current==='object' && !Array.isArray(current))drafts={...current};
+    }catch(e){}
     if(text)drafts[key]=text;
     else delete drafts[key];
     try {localStorage.setItem(DRAFT_STORAGE,JSON.stringify(drafts));return true;}
@@ -314,35 +322,82 @@
     clearTimeout(undoTimer);
     undoTimer=setTimeout(()=>{lastCountChange=null;document.querySelectorAll('.undo-row').forEach(el=>el.remove());},12000);
   }
-  function undoLastChange(key) {
+  async function undoLastChange(key) {
     const pending=lastCountChange;
     if(!pending || pending.key!==key || getDay(key).count!==pending.after)return showToast('这次修改已经无法撤销');
-    const saved=transaction(next=>{
+    const saved=await transaction(next=>{
       const day=next.days[key];
+      if(!day || day.count!==pending.after)throw Error('数据已更新，请重新确认数字');
       day.count=pending.before;
       next.events.push(makeEvent(key,pending.before===null?'unrecord':'count',pending.after,pending.before));
     },()=>{lastCountChange=null;clearTimeout(undoTimer);});
     if(saved)showToast('已撤销，修改过程仍保留');
   }
+  function syncLatest({silent=false}={}) {
+    let raw;
+    try {raw=localStorage.getItem(STORAGE);}catch(e){
+      recoveryIssue={message:'当前浏览器无法读取本地记录，已暂停写入。',raw:null};
+      if(!silent)showToast('读取记录失败，已暂停保存');
+      render();return false;
+    }
+    if(raw===lastStoredSnapshot)return true;
+    try {
+      const newer=raw?JSON.parse(raw):emptyState();
+      validate(newer);
+      const active=document.activeElement;
+      const editing=active?.matches?.('form[data-note-date] .note-input') ? {key:active.closest('form').dataset.noteDate,text:active.value}:null;
+      state=newer;
+      lastStoredSnapshot=raw;
+      lastCountChange=null;clearTimeout(undoTimer);
+      if(!recoveryIssue){render();if(editing){const input=document.querySelector(`form[data-note-date="${editing.key}"] .note-input`);if(input){input.value=editing.text;input.focus();}}}
+      if(!silent)showToast('已同步另一个页面的修改');
+      return true;
+    } catch(e) {
+      console.error('另一页面写入的记录需要恢复',e);
+      recoveryIssue={message:'检测到无法读取的新记录，已暂停写入以保护原始内容',raw};
+      render();return false;
+    }
+  }
+  async function withWriteLock(work) {
+    if(navigator.locks?.request) return navigator.locks.request(WRITE_LOCK,{mode:'exclusive'},work);
+    // Safari implementations without Web Locks still reject stale snapshots before writes.
+    return work();
+  }
   function persist(next) {
     if(recoveryIssue) { showToast('无法保存：请先处理本地数据恢复'); return false; }
-    try { localStorage.setItem(STORAGE,JSON.stringify(next)); state=next; app.dataset.theme=next.theme; return true; }
+    try {
+      const raw=localStorage.getItem(STORAGE);
+      if(raw!==lastStoredSnapshot) {
+        syncLatest({silent:true});
+        showToast('另一个页面刚修改了记录，请重试本次操作');
+        return false;
+      }
+      const serialized=JSON.stringify(next);
+      localStorage.setItem(STORAGE,serialized);
+      lastStoredSnapshot=serialized;
+      state=next;app.dataset.theme=next.theme;return true;
+    }
     catch(e) { showToast('保存失败，请检查浏览器存储空间'); console.error(e); return false; }
   }
-  function transaction(fn,onSaved) {
-    const next=JSON.parse(JSON.stringify(state));
-    fn(next);
-    const saved=persist(next);
-    if(saved) {if(onSaved)onSaved();render();}
-    return saved;
+  async function transaction(fn,onSaved) {
+    try {return await withWriteLock(()=>{
+      // Every edit is made against the current disk snapshot while holding the lock.
+      if(!syncLatest({silent:true}))return false;
+      const next=JSON.parse(JSON.stringify(state));
+      fn(next);
+      const saved=persist(next);
+      if(saved){if(onSaved)onSaved();render();}
+      return saved;
+    });}catch(e){console.warn('修改未完成',e);showToast(e.message==='数据已更新，请重新确认数字'?e.message:'保存时发生异常，请稍后重试');return false;}
   }
-  function changeCount(key,nextValue) {
+  async function changeCount(key,nextValue) {
     if(key>today()) return showToast('还不能记录未来的日期');
     if(!typeNum(nextValue)) return showToast('请输入 0～9999 的整数');
     const current=getDay(key).count;
     if(current===nextValue) return;
-    const saved=transaction(next=>{
+    const saved=await transaction(next=>{
       const day=next.days[key] || {count:null,notes:[]};
+      if(day.count!==current)throw Error('数据已更新，请重新确认数字');
       day.count=nextValue;
       next.days[key]=day;
       next.events.push(makeEvent(key,current===null?'initial':'count',current,nextValue));
@@ -350,16 +405,27 @@
     if(saved)showToast(key<today() ? '已修改，旧记录仍在历史里' : '记下了');
     return saved;
   }
-  function adjustCount(key,delta) {
-    const old=getDay(key).count;
-    if(old===null && delta<0) return showToast('这一天还没有记录');
-    const next=Math.min(MAX, Math.max(0,(old??0)+delta));
-    changeCount(key,next);
+  async function adjustCount(key,delta) {
+    if(key>today())return;
+    let nextCount,previousCount;
+    const saved=await transaction(next=>{
+      previousCount=(next.days[key]||{count:null}).count;
+      if(previousCount===null&&delta<0)return;
+      nextCount=Math.min(MAX,Math.max(0,(previousCount??0)+delta));
+      if(nextCount===previousCount)return;
+      const day=next.days[key]||{count:null,notes:[]};
+      day.count=nextCount;next.days[key]=day;
+      next.events.push(makeEvent(key,previousCount===null?'initial':'count',previousCount,nextCount));
+    },()=>{
+      if(nextCount!==undefined && nextCount!==previousCount)allowUndo(key,previousCount,nextCount);
+    });
+    if(saved){if(previousCount===null&&delta<0)showToast('这一天还没有记录');else if(nextCount!==previousCount)showToast(key<today()?'已修改，旧记录仍在历史里':'记下了');}
+    return saved;
   }
-  function addNote(key,text) {
-    const v=text.trim(); if(!v) return; if(v.length>300) return showToast('简记最多 300 字');
+  async function addNote(key,text) {
+    const v=text.trim(); if(!v)return false; if(v.length>300){showToast('简记最多 300 字');return false;}
     if(key>today()) return;
-    const saved=transaction(next=>{
+    const saved=await transaction(next=>{
       const day=next.days[key] || {count:null,notes:[]};
       const noteId=id(); day.notes.push({id:noteId,text:v,createdAt:new Date().toISOString()});
       next.days[key]=day;
@@ -368,28 +434,29 @@
     if(saved)showToast('这几个字也留下了');
     return saved;
   }
-  function editNote(key,noteId,text) {
-    const v=text.trim(); if(!v) return showToast('若要移除这条简记，请选择删除');
-    if(v.length>300) return showToast('简记最多 300 字');
-    const before=getDay(key).notes.find(n=>n.id===noteId); if(!before || before.text===v)return;
-    const saved=transaction(next=>{
-      const d=next.days[key]; const n=d.notes.find(n=>n.id===noteId); const old=n.text;
+  async function editNote(key,noteId,text) {
+    const v=text.trim(); if(!v){showToast('若要移除这条简记，请选择删除');return false;}
+    if(v.length>300){showToast('简记最多 300 字');return false;}
+    const before=getDay(key).notes.find(n=>n.id===noteId); if(!before)return false;
+    if(before.text===v)return true;
+    const saved=await transaction(next=>{
+      const d=next.days[key]; const n=d?.notes.find(n=>n.id===noteId); if(!n||n.text!==before.text)throw Error('简记已被其他页面更新，请重新打开'); const old=n.text;
       n.text=v; n.updatedAt=new Date().toISOString();
       next.events.push(makeEvent(key,'note_edit',d.count,d.count,{noteId,oldText:old,newText:v}));
     }); if(saved)showToast('简记已更新，旧文还在历史里');
     return saved;
   }
-  function deleteNote(key,noteId) {
-    const note=getDay(key).notes.find(n=>n.id===noteId); if(!note)return;
-    const saved=transaction(next=>{
-      const d=next.days[key]; d.notes=d.notes.filter(n=>n.id!==noteId);
+  async function deleteNote(key,noteId) {
+    const note=getDay(key).notes.find(n=>n.id===noteId); if(!note)return false;
+    const saved=await transaction(next=>{
+      const d=next.days[key]; if(!d.notes.some(n=>n.id===noteId && n.text===note.text))throw Error('简记已被其他页面更新，请重新打开'); d.notes=d.notes.filter(n=>n.id!==noteId);
       next.events.push(makeEvent(key,'note_delete',d.count,d.count,{noteId,oldText:note.text,newText:null}));
     }); if(saved)showToast('简记已移除，修改历史仍会保留');
     return saved;
   }
-  function undoRecord(key) {
-    if(getDay(key).count===null) return;
-    const saved=transaction(next=>{
+  async function undoRecord(key) {
+    if(getDay(key).count===null) return false;
+    const saved=await transaction(next=>{
       const day=next.days[key]; const old=day.count; day.count=null;
       next.events.push(makeEvent(key,'unrecord',old,null));
     }); if(saved)showToast('已撤回为未记录，历史仍保留');
@@ -412,10 +479,10 @@
     const old=getDay(key).count;
     openDialog(`<h2 id="dialog-title">${dateLabel(key)}的错事</h2><p>直接输入现在觉得的数量。过去的数字不会被抹去。</p><input aria-label="错事数量" id="editor-number" type="number" min="0" max="9999" step="1" inputmode="numeric" value="${old??''}" placeholder="0—9999"/><div id="editor-error" class="dialog-error" aria-live="polite"></div><div class="modal-actions"><button type="button" data-close>取消</button><button type="button" class="commit" id="editor-save">保存</button></div>`,()=>{
       const input=dialog.querySelector('#editor-number');
-      const save=()=>{
+      const save=async ()=>{
         const n=Number(input.value);
         if(input.value.trim()==='' || !/^\d+$/.test(input.value.trim()) || !typeNum(n)) { dialog.querySelector('#editor-error').textContent='请输入 0～9999 的整数';return; }
-        if(changeCount(key,n)!==false)closeDialog();
+        if(await changeCount(key,n)!==false)closeDialog();
       };
       dialog.querySelector('#editor-save').addEventListener('click',save);
       input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
@@ -424,13 +491,13 @@
   function noteEditor(key,noteId) {
     const n=getDay(key).notes.find(n=>n.id===noteId);if(!n)return;
     openDialog(`<h2 id="dialog-title">修改简记</h2><p>只改变这几个字，不影响当天的错事数量。</p><textarea id="editor-note" maxlength="300" aria-label="修改简记">${escapeHtml(n.text)}</textarea><div class="modal-actions"><button data-close>取消</button><button class="commit" id="note-save">保存</button></div><button class="text-button" id="note-delete" style="margin-top:18px">删除这条简记</button>`,()=>{
-      dialog.querySelector('#note-save').addEventListener('click',()=>{const v=dialog.querySelector('#editor-note').value;if(editNote(key,noteId,v)!==false)closeDialog();});
-      dialog.querySelector('#note-delete').addEventListener('click',()=>{if(deleteNote(key,noteId)!==false)closeDialog();});
+      dialog.querySelector('#note-save').addEventListener('click',async ()=>{const v=dialog.querySelector('#editor-note').value;if(await editNote(key,noteId,v)!==false)closeDialog();});
+      dialog.querySelector('#note-delete').addEventListener('click',async ()=>{if(await deleteNote(key,noteId)!==false)closeDialog();});
     });
   }
   function confirmUnrecord(key) {
     openDialog(`<h2 id="dialog-title">撤回这一天的记录？</h2><p>这会把数字恢复为「未记录」，而不是改成 0。已有简记和变更历史仍然保留。</p><div class="modal-actions"><button data-close>取消</button><button id="confirm-unrecord" class="commit">撤回记录</button></div>`,()=>{
-      dialog.querySelector('#confirm-unrecord').addEventListener('click',()=>{if(undoRecord(key)!==false)closeDialog();});
+      dialog.querySelector('#confirm-unrecord').addEventListener('click',async ()=>{if(await undoRecord(key)!==false)closeDialog();});
     });
   }
   function noteArea(key) {
@@ -462,8 +529,10 @@
   }
   function todayChanges() {
     const es=eventsOnOpDate(today());if(!es.length)return '';
-    return `<div class="past-edits" aria-label="今天对过去的修改"><div class="section-heading"><h2>今天也改了过去的记录</h2><small>${es.length} 次</small></div>
-    ${es.map(e=>`<button class="tiny-change" data-action="detail" data-date="${e.targetDate}"><span>${dateLabel(e.targetDate)}${e.type==='count'?'':' · '+(e.type==='initial'?'补记':e.type==='unrecord'?'撤回':'简记')}</span><strong>${e.type==='count'?`${e.before} → ${e.after}<em>${e.delta>0?'+':''}${e.delta}</em>`:eventText(e)}</strong></button>`).join('')}</div>`;
+    const unique=[...new Set(es.map(e=>e.targetDate))];
+    const last=es[0];
+    const desc=es.length===1 ? `今天还改了${dateLabel(last.targetDate)}的记录` : `今天还改了过去 ${unique.length} 天的记录`;
+    return `<div class="past-edits"><button class="past-edit-summary" data-action="${unique.length===1?'detail':'go-calendar'}" ${unique.length===1?`data-date="${last.targetDate}"`:''} aria-label="${desc}，查看详情"><span>${desc}</span><span aria-hidden="true">↗</span></button></div>`;
   }
   function renderToday() {
     const key=today();
@@ -539,7 +608,7 @@
       <section class="setting-group"><h2>外观</h2><button class="skin-choice" data-action="theme" data-theme="paper" aria-pressed="${state.theme==='paper'}"><span><strong>纸张与文字</strong><small>暖纸白、深灰文字，像一本私人手记</small></span><span class="radio-check ${state.theme==='paper'?'on':''}"></span></button>
       <button class="skin-choice" data-action="theme" data-theme="modern" aria-pressed="${state.theme==='modern'}"><span><strong>现代极简</strong><small>清爽中性色，把注意力交给数字与日期</small></span><span class="radio-check ${state.theme==='modern'?'on':''}"></span></button></section>
       <section class="setting-group"><h2>数据</h2><button class="setting-button" data-action="export">导出完整备份 <span aria-hidden="true">↗</span></button><button class="setting-button" data-action="import">导入备份</button><button class="setting-button danger" data-action="clear">删除全部记录</button>${backupStatus()}<p class="setting-hint">记录和修改历史只存在当前浏览器。浏览器清理数据或换设备可能丢失记录；导出的备份包含私人文字，请妥善保管。尚未点击「留下」的简记草稿不会包含在正式备份中。</p></section>
-      <section class="about"><strong>错事</strong><br>错了就错了，先放在这里吧。<br><br>这是网页版 v0.3。记录只保存在当前浏览器，不提供云同步，也不作为心理治疗工具。</section>`;
+      <section class="about"><strong>错事</strong><br>错了就错了，先放在这里吧。<br><br>这是网页版 v0.3.1。记录只保存在当前浏览器，不提供云同步，也不作为心理治疗工具。</section>`;
   }
   function renderNav() {
     const items=[['today','今天'],['calendar','日历'],['stats','统计'],['settings','设置']];
@@ -619,9 +688,20 @@
       });
     });
   }
-  function download() {
+  async function sha256(text) {
+    if(!crypto?.subtle)return null;
+    const bytes=new TextEncoder().encode(text);
+    const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+    return Array.from(hash,b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  function backupContent(payload) {
+    return JSON.stringify({version:payload.version,theme:payload.theme,days:payload.days,events:payload.events});
+  }
+  async function download() {
     try {
-      const data=JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2);
+      if(!syncLatest({silent:true}))return;
+      const checksumSha256=await sha256(backupContent(state));
+      const data=JSON.stringify({...state,exportedAt:new Date().toISOString(),...(checksumSha256?{backupFormat:2,checksumSha256}:{})},null,2);
       const blob=new Blob([data],{type:'application/json;charset=utf-8'});
       const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`错事备份_${today()}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
       confirmBackup();
@@ -659,20 +739,28 @@
   function importBackup(file) {
     if(file.size>15*1024*1024)return showToast('文件过大，无法导入');
     const reader=new FileReader();
-    reader.onload=()=>{
+    reader.onload=async ()=>{
       try {
         const parsed=JSON.parse(String(reader.result));validate(parsed);
-        openDialog(`<h2 id="dialog-title">导入这份备份？</h2><p>验证通过：${Object.keys(parsed.days).length} 个日期、${parsed.events.length} 条修改历史。导入将替换当前浏览器里的全部记录，建议先导出一份备份。</p><div class="modal-actions"><button data-close>取消</button><button class="commit" id="confirm-import">替换并导入</button></div>`,()=>{
-          dialog.querySelector('#confirm-import').addEventListener('click',()=>{if(persist({version:1,theme:parsed.theme,days:parsed.days,events:parsed.events})){clearDrafts();lastCountChange=null;closeDialog();goTab('today');showToast('备份导入完成');}});
+        if(parsed.backupFormat===2){
+          if(!/^[a-f0-9]{64}$/.test(parsed.checksumSha256||''))throw Error('备份校验码缺失或无效');
+          const actual=await sha256(backupContent(parsed));
+          if(!actual)throw Error('当前浏览器不支持备份完整性校验');
+          if(actual!==parsed.checksumSha256)throw Error('备份文件内容与校验码不匹配，已停止导入');
+        } else if(parsed.backupFormat!==undefined){throw Error('暂不支持这种备份格式');}
+        const last=parsed.events.at(-1);
+        const verified=parsed.backupFormat===2?'校验码验证通过':'旧版备份：格式及历史记录验证通过';
+        openDialog(`<h2 id="dialog-title">导入这份备份？</h2><p>${verified}。共 ${Object.keys(parsed.days).length} 个日期、${parsed.events.length} 条修改历史${last?'；最后一次修改于 '+escapeHtml(dateLabel(last.opDate,true)):''}。将替换当前记录，未提交的草稿也会清除。建议先导出当前备份。</p><div class="modal-actions"><button data-close>取消</button><button class="commit" id="confirm-import">替换并导入</button></div>`,()=>{
+          dialog.querySelector('#confirm-import').addEventListener('click',async ()=>{const ok=await withWriteLock(()=>persist({version:1,theme:parsed.theme,days:parsed.days,events:parsed.events}));if(ok){clearDrafts();lastCountChange=null;closeDialog();goTab('today');showToast('备份导入完成');}});
         });
       } catch(e) {showToast('导入失败：'+(e.message||'文件格式不正确'));}
     };reader.readAsText(file);
   }
   function clearAll() {
     openDialog(`<h2 id="dialog-title">删除全部记录？</h2><p>这会清除所有日期、简记与完整修改历史，不能从应用内恢复。请先导出备份。</p><div class="modal-actions"><button data-close>取消</button><button class="commit" id="confirm-clear">确认删除</button></div>`,()=>{
-      dialog.querySelector('#confirm-clear').addEventListener('click',()=>{
-        const clean={version:1,theme:state.theme,days:{},events:[]};
-        if(persist(clean)){clearDrafts();lastCountChange=null;closeDialog();try{localStorage.removeItem(BACKUP_META);}catch(e){}goTab('today');showToast('所有记录已删除');}
+      dialog.querySelector('#confirm-clear').addEventListener('click',async ()=>{
+        const ok=await withWriteLock(()=>persist({version:1,theme:state.theme,days:{},events:[]}));
+        if(ok){clearDrafts();lastCountChange=null;closeDialog();try{localStorage.removeItem(BACKUP_META);}catch(e){}goTab('today');showToast('所有记录已删除');}
       });
     });
   }
@@ -689,6 +777,7 @@
     if(action==='edit-count')numberEditor(key);
     if(action==='edit-note')noteEditor(key,t.dataset.id);
     if(action==='detail')goDetail(key);
+    if(action==='go-calendar')goTab('calendar');
     if(action==='unrecord')confirmUnrecord(key);
     if(action==='back-calendar'){selectedDate=null;render();window.scrollTo(0,0);}
     if(action==='prev-month')monthShift(-1);
@@ -716,6 +805,16 @@
   });
   document.addEventListener('keydown',e=>{if(e.key==='Escape' && dialog.innerHTML !== '')closeDialog();});
   importFile.addEventListener('change',()=>{const file=importFile.files?.[0];if(file)importBackup(file);importFile.value='';});
+  window.addEventListener('storage',e=>{
+    if(e.key===STORAGE){syncLatest({silent:false});}
+    else if(e.key===DRAFT_STORAGE){
+      const active=document.activeElement?.matches?.('.note-input')?document.activeElement:null;
+      if(!active){drafts=loadDrafts();if(!dialog.innerHTML)render();}
+    }
+  });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){syncLatest({silent:true});render();}
+  });
   // Small test hook for local browser acceptance checks; never exposed as navigation or UI.
   // 本地行为均在浏览器内完成；生产页面不暴露修改数据的调试入口。
   try { app.dataset.theme=state.theme; render(); }
